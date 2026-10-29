@@ -9,7 +9,7 @@ Built with Next.js 16 (App Router), TypeScript, Tailwind CSS 4 and Supabase (aut
 | Step | Scope | State |
 | --- | --- | --- |
 | 1 | Foundation: layout, components, auth, database schema with RLS, live dashboard | Done |
-| 2 | Transactions, transfers, categories, budgets, recurring bills | Planned |
+| 2 | Transactions, transfers, accounts and categories, budgets, recurring bills | Done |
 | 3 | Savings goals, daily spending limit, affordability calculator | Planned |
 | 4 | Charts, monthly reports and CSV export, settings, final hardening | Planned |
 
@@ -49,7 +49,8 @@ Import the repository in Vercel, add `NEXT_PUBLIC_SUPABASE_URL` and `NEXT_PUBLIC
 - **Savings:** a transfer into a savings account (or one tagged with a savings goal) counts as saving, not spending. Withdrawing from savings reduces what you saved that month.
 - **Available balance** is the total in everyday accounts (cash, bank, mobile wallets and credit cards), excluding savings.
 - **Budget months** can start on any day from 1 to 28. "Today" is worked out in your timezone (Asia/Karachi by default), so month boundaries do not shift with the server's clock.
-- **Recurring transactions** record which rule and occurrence date they came from. A unique index makes posting the same occurrence twice impossible.
+- **Recurring transactions** record which rule and occurrence date they came from. You mark each occurrence as paid (or skip it) when it happens; `post_recurring_occurrence` records it and advances the rule in one database transaction, and a unique index makes posting the same occurrence twice impossible. Monthly items keep their day, falling back to the month's last day in shorter months.
+- **Budgets** are per category per budget month. Spending in a category without a budget is shown separately, and last month's limits can be copied forward.
 
 ## Security
 
@@ -65,7 +66,7 @@ Import the repository in Vercel, add `NEXT_PUBLIC_SUPABASE_URL` and `NEXT_PUBLIC
 src/
   app/
     (auth)/          sign in, sign up and their server actions
-    (app)/           signed-in pages (dashboard and the sections still to build)
+    (app)/           signed-in pages; each section keeps its server actions in actions.ts
     auth/            email confirmation callbacks
   components/
     layout/          sidebar, mobile navigation, user menu
@@ -77,5 +78,5 @@ src/
     validation/      Zod schemas shared by forms and server actions
   proxy.ts           refreshes the session and redirects signed-out visitors
 supabase/migrations  database schema, RLS policies and the new-user trigger
-db-tests/            SQL tests for RLS and data integrity
+db-tests/            SQL tests for RLS, data integrity and recurring posting
 ```

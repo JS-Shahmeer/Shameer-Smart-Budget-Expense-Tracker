@@ -130,7 +130,13 @@ export type Database = {
     Views: {
       account_balances: { Row: AccountBalanceRow; Relationships: [] };
     };
-    Functions: Record<never, never>;
+    Functions: {
+      post_recurring_occurrence: { Args: { rule_id: string; skip?: boolean }; Returns: string | null };
+      next_occurrence: {
+        Args: { current_due: string; start_on: string; frequency: RecurrenceFrequency; interval_count: number };
+        Returns: string;
+      };
+    };
     Enums: {
       account_type: AccountType;
       category_kind: CategoryKind;
