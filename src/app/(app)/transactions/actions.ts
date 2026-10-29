@@ -2,7 +2,7 @@
 
 import { refresh } from "next/cache";
 import { requireUser } from "@/lib/auth";
-import { databaseFailure, validationFailure, type ActionResult } from "@/lib/action-result";
+import { databaseFailure, INVALID_ID, isId, validationFailure, type ActionResult } from "@/lib/action-result";
 import { parseAmountToMinor } from "@/lib/money";
 import { createClient } from "@/lib/supabase/server";
 import type { Database } from "@/lib/supabase/database.types";
@@ -51,6 +51,7 @@ export async function createTransaction(input: unknown): Promise<ActionResult> {
 
 export async function updateTransaction(id: string, input: unknown): Promise<ActionResult> {
   const user = await requireUser();
+  if (!isId(id)) return INVALID_ID;
   const result = toRow(input);
   if (!result.ok) return result.failure;
 
@@ -69,6 +70,7 @@ export async function updateTransaction(id: string, input: unknown): Promise<Act
 
 export async function deleteTransaction(id: string): Promise<ActionResult> {
   const user = await requireUser();
+  if (!isId(id)) return INVALID_ID;
   const supabase = await createClient();
   const { data, error } = await supabase.from("transactions").delete().eq("id", id).eq("user_id", user.id).select("id");
   if (error) return databaseFailure(error, "delete the transaction");

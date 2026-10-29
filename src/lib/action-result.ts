@@ -33,3 +33,12 @@ export function databaseFailure(error: PostgrestError, action: string): ActionRe
       return { ok: false, error: `Could not ${action}. Try again.` };
   }
 }
+
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/** Ids arrive from the browser like any other input, so check their shape before querying. */
+export function isId(value: unknown): value is string {
+  return typeof value === "string" && UUID.test(value);
+}
+
+export const INVALID_ID: ActionResult = { ok: false, error: "That item no longer exists. Refresh and try again." };

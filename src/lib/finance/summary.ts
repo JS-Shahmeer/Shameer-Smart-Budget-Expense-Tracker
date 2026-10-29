@@ -47,6 +47,23 @@ export function budgetStatus(spentMinor: number, limitMinor: number, warningPerc
 }
 
 /**
+ * How a transfer changes money held as savings: +amount when it moves from an
+ * everyday account into savings (or is tagged with a goal), -amount when it
+ * moves out of savings, 0 for moves between two accounts of the same sort.
+ */
+export function savingsEffect(
+  t: Pick<TransactionRow, "kind" | "amount_minor" | "account_id" | "to_account_id" | "savings_goal_id">,
+  isSavings: (accountId: string | null) => boolean,
+): number {
+  if (t.kind !== "transfer") return 0;
+  const fromSavings = isSavings(t.account_id);
+  const toSavings = isSavings(t.to_account_id);
+  if (!fromSavings && (toSavings || t.savings_goal_id)) return t.amount_minor;
+  if (fromSavings && !toSavings) return -t.amount_minor;
+  return 0;
+}
+
+/**
  * Summarises one budget period.
  *
  * Transfers between the user's own accounts never count as income or spending.
@@ -77,10 +94,7 @@ export function summarizeMonth(input: {
         spentByCategory.set(t.category_id, (spentByCategory.get(t.category_id) ?? 0) + t.amount_minor);
       }
     } else {
-      const fromSavings = isSavings(t.account_id);
-      const toSavings = isSavings(t.to_account_id);
-      if (!fromSavings && (toSavings || t.savings_goal_id)) savedMinor += t.amount_minor;
-      else if (fromSavings && !toSavings) savedMinor -= t.amount_minor;
+      savedMinor += savingsEffect(t, isSavings);
     }
   }
 

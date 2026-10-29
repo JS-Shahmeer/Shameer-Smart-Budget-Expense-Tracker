@@ -2,15 +2,14 @@
 
 import { refresh } from "next/cache";
 import { requireUser } from "@/lib/auth";
-import { databaseFailure, validationFailure, type ActionResult } from "@/lib/action-result";
+import { databaseFailure, INVALID_ID, isId, validationFailure, type ActionResult } from "@/lib/action-result";
 import { parseAmountToMinor } from "@/lib/money";
 import { createClient } from "@/lib/supabase/server";
 import { nullIfEmpty, recurringSchema } from "@/lib/validation/finance";
 
-const UUID = /^[0-9a-f-]{36}$/i;
-
 export async function saveRecurringRule(id: string | null, input: unknown): Promise<ActionResult> {
   const user = await requireUser();
+  if (id !== null && !isId(id)) return INVALID_ID;
   const parsed = recurringSchema.safeParse(input);
   if (!parsed.success) return validationFailure(parsed.error);
   const v = parsed.data;
@@ -45,6 +44,7 @@ export async function saveRecurringRule(id: string | null, input: unknown): Prom
 
 export async function setRecurringActive(id: string, active: boolean): Promise<ActionResult> {
   const user = await requireUser();
+  if (!isId(id)) return INVALID_ID;
   const supabase = await createClient();
   const { data, error } = await supabase
     .from("recurring_rules")
@@ -61,6 +61,7 @@ export async function setRecurringActive(id: string, active: boolean): Promise<A
 /** Deletes the rule. Transactions it already posted stay, unlinked. */
 export async function deleteRecurringRule(id: string): Promise<ActionResult> {
   const user = await requireUser();
+  if (!isId(id)) return INVALID_ID;
   const supabase = await createClient();
   const { data, error } = await supabase.from("recurring_rules").delete().eq("id", id).eq("user_id", user.id).select("id");
   if (error) return databaseFailure(error, "delete the recurring item");
@@ -76,7 +77,7 @@ export async function deleteRecurringRule(id: string): Promise<ActionResult> {
  */
 export async function postOccurrence(ruleId: string, skip: boolean): Promise<ActionResult> {
   await requireUser();
-  if (!UUID.test(ruleId)) return { ok: false, error: "Invalid recurring item." };
+  if (!isId(ruleId)) return INVALID_ID;
   const supabase = await createClient();
   const { error } = await supabase.rpc("post_recurring_occurrence", { rule_id: ruleId, skip });
   if (error) {

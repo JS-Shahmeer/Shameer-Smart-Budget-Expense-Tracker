@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { safeNextPath, signUpSchema } from "./auth";
+import { changePasswordSchema, safeNextPath, signUpSchema } from "./auth";
 
 describe("safeNextPath", () => {
   it.each([
@@ -23,5 +23,14 @@ describe("signUpSchema", () => {
   it("normalises the email", () => {
     const result = signUpSchema.parse({ email: " Me@Example.COM ", password: "longenough", confirmPassword: "longenough" });
     expect(result.email).toBe("me@example.com");
+  });
+});
+
+describe("changePasswordSchema", () => {
+  it("needs matching passwords of at least 8 characters", () => {
+    expect(changePasswordSchema.safeParse({ password: "long enough", confirmPassword: "long enough" }).success).toBe(true);
+    expect(changePasswordSchema.safeParse({ password: "short", confirmPassword: "short" }).success).toBe(false);
+    const mismatch = changePasswordSchema.safeParse({ password: "long enough", confirmPassword: "long enougj" });
+    expect(mismatch.error?.issues[0]?.path).toEqual(["confirmPassword"]);
   });
 });

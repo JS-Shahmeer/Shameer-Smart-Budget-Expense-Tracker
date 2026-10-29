@@ -144,3 +144,36 @@ export function parseSignedAmountToMinor(value: string): number | null {
 }
 
 export const nullIfEmpty = (value: string | undefined) => (value ? value : null);
+
+export const CURRENCIES = ["PKR", "USD", "EUR", "GBP", "AED", "SAR", "QAR", "KWD", "OMR", "BHD", "INR", "CAD", "AUD", "MYR", "TRY", "CNY", "JPY"] as const;
+
+export function isValidTimeZone(value: string): boolean {
+  try {
+    new Intl.DateTimeFormat("en", { timeZone: value });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+const dayOfMonth = (max: number) =>
+  z
+    .string()
+    .trim()
+    .regex(/^\d{1,2}$/, `Enter a day from 1 to ${max}`)
+    .refine((value) => Number(value) >= 1 && Number(value) <= max, `Enter a day from 1 to ${max}`);
+
+export const settingsSchema = z.object({
+  displayName: optionalText(80),
+  currency: z.enum(CURRENCIES, "Choose a currency"),
+  timezone: z.string().min(1, "Choose a time zone").max(64).refine(isValidTimeZone, "Choose a valid time zone"),
+  monthStartDay: dayOfMonth(28),
+  paydayDay: dayOfMonth(31),
+  budgetWarningPercent: z
+    .string()
+    .trim()
+    .regex(/^\d{1,3}$/, "Enter a percentage from 1 to 100")
+    .refine((value) => Number(value) >= 1 && Number(value) <= 100, "Enter a percentage from 1 to 100"),
+});
+
+export type SettingsInput = z.infer<typeof settingsSchema>;
