@@ -10,7 +10,7 @@ Built with Next.js 16 (App Router), TypeScript, Tailwind CSS 4 and Supabase (aut
 | --- | --- | --- |
 | 1 | Foundation: layout, components, auth, database schema with RLS, live dashboard | Done |
 | 2 | Transactions, transfers, accounts and categories, budgets, recurring bills | Done |
-| 3 | Savings goals, daily spending limit, affordability calculator | Planned |
+| 3 | Savings goals, daily spending limit, affordability calculator | Done |
 | 4 | Charts, monthly reports and CSV export, settings, final hardening | Planned |
 
 Pages for later steps exist in the navigation and say which step they belong to.
@@ -50,6 +50,9 @@ Import the repository in Vercel, add `NEXT_PUBLIC_SUPABASE_URL` and `NEXT_PUBLIC
 - **Available balance** is the total in everyday accounts (cash, bank, mobile wallets and credit cards), excluding savings.
 - **Budget months** can start on any day from 1 to 28. "Today" is worked out in your timezone (Asia/Karachi by default), so month boundaries do not shift with the server's clock.
 - **Recurring transactions** record which rule and occurrence date they came from. You mark each occurrence as paid (or skip it) when it happens; `post_recurring_occurrence` records it and advances the rule in one database transaction, and a unique index makes posting the same occurrence twice impossible. Monthly items keep their day, falling back to the month's last day in shorter months.
+- **Savings goals** track money moved in and out with transfers tagged to the goal, plus anything saved before tracking started. Each goal shows the monthly amount needed to reach its target date and what is still to put aside this month.
+- **Daily spending limit** = (money in everyday accounts at the start of today − unpaid bills due before payday − savings still to put aside) ÷ days until payday, rounded down to whole rupees. It is worked out from the start of the day, so spending today lowers "left today" rather than the limit itself.
+- **Affordability** shows how a purchase today would change the daily limit, whether it eats into bill or savings money, how far it would push savings goals back, and the effect on the category budget. Nothing is saved.
 - **Budgets** are per category per budget month. Spending in a category without a budget is shown separately, and last month's limits can be copied forward.
 
 ## Security
