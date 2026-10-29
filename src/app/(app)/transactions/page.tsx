@@ -1,9 +1,10 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { Suspense } from "react";
-import { ArrowLeftRight, SearchX } from "lucide-react";
+import { ArrowLeftRight, FileUp, SearchX } from "lucide-react";
 import { AddTransactionButton, TransactionRows } from "@/components/transactions/transaction-dialogs";
 import { TransactionFilters } from "@/components/transactions/transaction-filters";
+import { ButtonLink } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/empty-state";
 import { PageHeader } from "@/components/ui/page-header";
@@ -53,7 +54,15 @@ async function Transactions({ searchParams }: { searchParams: PageProps<"/transa
       <PageHeader
         title="Transactions"
         description="Income, expenses and transfers between your accounts."
-        actions={<AddTransactionButton accounts={accounts} categories={categories} goals={goals} today={today} />}
+        actions={
+          <>
+            <ButtonLink href="/transactions/import" variant="secondary">
+              <FileUp aria-hidden className="size-4" />
+              Import statement
+            </ButtonLink>
+            <AddTransactionButton accounts={accounts} categories={categories} goals={goals} today={today} />
+          </>
+        }
       />
 
       <TransactionFilters

@@ -41,4 +41,4 @@ export function isId(value: unknown): value is string {
   return typeof value === "string" && UUID.test(value);
 }
 
-export const INVALID_ID: ActionResult = { ok: false, error: "That item no longer exists. Refresh and try again." };
+export const INVALID_ID = { ok: false, error: "That item no longer exists. Refresh and try again." } as const satisfies ActionResult;

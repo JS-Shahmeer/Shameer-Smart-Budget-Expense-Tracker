@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { isValidIsoDate } from "@/lib/dates";
-import { parseAmountToMinor } from "@/lib/money";
+import { MAX_AMOUNT_MINOR, parseAmountToMinor } from "@/lib/money";
 
 // Form schemas shared by the client forms and the server actions. Values stay
 // strings, as the inputs produce them; server actions convert with the
@@ -177,3 +177,28 @@ export const settingsSchema = z.object({
 });
 
 export type SettingsInput = z.infer<typeof settingsSchema>;
+
+/** Most rows one statement import may save. A year of busy account activity fits comfortably. */
+export const MAX_IMPORT_ROWS = 3000;
+
+const importedRow = z.object({
+  date: dateField,
+  description: z.string().trim().max(120),
+  amountMinor: z.number().int().positive().lt(MAX_AMOUNT_MINOR),
+  kind: z.enum(["income", "expense"]),
+});
+
+export const importCheckSchema = z.array(importedRow).min(1, "The file has no transactions").max(MAX_IMPORT_ROWS, `Import at most ${MAX_IMPORT_ROWS} rows at a time`);
+
+/** A row to save: a category for income or spending, or another of your accounts for a transfer. */
+export const importCommitSchema = z
+  .array(
+    importedRow.extend({
+      categoryId: z.uuid().nullable(),
+      transferAccountId: z.uuid().nullable(),
+    }),
+  )
+  .min(1, "Choose at least one row to import")
+  .max(MAX_IMPORT_ROWS, `Import at most ${MAX_IMPORT_ROWS} rows at a time`);
+
+export type ImportCommitRow = z.infer<typeof importCommitSchema>[number];
