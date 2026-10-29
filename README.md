@@ -11,9 +11,7 @@ Built with Next.js 16 (App Router), TypeScript, Tailwind CSS 4 and Supabase (aut
 | 1 | Foundation: layout, components, auth, database schema with RLS, live dashboard | Done |
 | 2 | Transactions, transfers, accounts and categories, budgets, recurring bills | Done |
 | 3 | Savings goals, daily spending limit, affordability calculator | Done |
-| 4 | Charts, monthly reports and CSV export, settings, final hardening | Planned |
-
-Pages for later steps exist in the navigation and say which step they belong to.
+| 4 | Charts, monthly reports and CSV export, settings, final hardening | Done |
 
 ## Getting started
 
@@ -39,7 +37,7 @@ Import the repository in Vercel, add `NEXT_PUBLIC_SUPABASE_URL` and `NEXT_PUBLIC
 | `npm run dev` | Development server |
 | `npm run build` | Production build |
 | `npm run lint` / `npm run typecheck` | ESLint and TypeScript checks |
-| `npm test` | Unit tests for money, dates and the monthly summary (Vitest) |
+| `npm test` | Unit tests for money, dates, validation and the finance calculations (Vitest) |
 | `npm run test:db` | Applies the migrations to a throwaway Postgres and runs the RLS and integrity tests in `db-tests/`. Needs Postgres server binaries installed. |
 
 ## How the money is modelled
@@ -54,6 +52,9 @@ Import the repository in Vercel, add `NEXT_PUBLIC_SUPABASE_URL` and `NEXT_PUBLIC
 - **Daily spending limit** = (money in everyday accounts at the start of today − unpaid bills due before payday − savings still to put aside) ÷ days until payday, rounded down to whole rupees. It is worked out from the start of the day, so spending today lowers "left today" rather than the limit itself.
 - **Affordability** shows how a purchase today would change the daily limit, whether it eats into bill or savings money, how far it would push savings goals back, and the effect on the category budget. Nothing is saved.
 - **Budgets** are per category per budget month. Spending in a category without a budget is shown separately, and last month's limits can be copied forward.
+- **Analytics** cover the last 3, 6 or 12 budget months. Averages only count months that have something recorded, and the savings rate is money saved divided by income.
+- **Reports** compare a budget month with the one before it. The CSV export (one month, or everything) has one row per transaction with names instead of ids. Text that a spreadsheet would run as a formula is prefixed with an apostrophe.
+- **Changing currency** only changes how amounts are labelled. Nothing is converted.
 
 ## Security
 
@@ -61,6 +62,8 @@ Import the repository in Vercel, add `NEXT_PUBLIC_SUPABASE_URL` and `NEXT_PUBLIC
 - Child rows reference accounts, categories and goals through composite `(id, user_id)` foreign keys, so a row cannot point at another user's data even if its id is known.
 - Signed-out visitors have no table privileges at all.
 - Input is validated with Zod in the browser and again in server actions, and by database constraints.
+- Ids sent to server actions are checked before any query runs.
+- Responses carry security headers: no framing, no MIME sniffing, a strict referrer policy and HSTS.
 - Only the public URL and publishable key are used in the app.
 
 ## Project structure

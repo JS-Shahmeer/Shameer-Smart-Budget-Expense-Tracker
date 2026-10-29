@@ -2,7 +2,7 @@
 
 import { refresh } from "next/cache";
 import { requireUser } from "@/lib/auth";
-import { databaseFailure, validationFailure, type ActionResult } from "@/lib/action-result";
+import { databaseFailure, INVALID_ID, isId, validationFailure, type ActionResult } from "@/lib/action-result";
 import { parseAmountToMinor } from "@/lib/money";
 import { createClient } from "@/lib/supabase/server";
 import type { GoalStatus } from "@/lib/supabase/database.types";
@@ -12,6 +12,7 @@ const optionalMinor = (value: string | undefined) => (value ? parseAmountToMinor
 
 export async function saveGoal(id: string | null, input: unknown): Promise<ActionResult> {
   const user = await requireUser();
+  if (id !== null && !isId(id)) return INVALID_ID;
   const parsed = goalSchema.safeParse(input);
   if (!parsed.success) return validationFailure(parsed.error);
   const v = parsed.data;
@@ -35,6 +36,7 @@ export async function saveGoal(id: string | null, input: unknown): Promise<Actio
 
 export async function setGoalStatus(id: string, status: GoalStatus): Promise<ActionResult> {
   const user = await requireUser();
+  if (!isId(id)) return INVALID_ID;
   if (!["active", "completed", "archived"].includes(status)) return { ok: false, error: "Invalid status." };
   const supabase = await createClient();
   const { data, error } = await supabase.from("savings_goals").update({ status }).eq("id", id).eq("user_id", user.id).select("id");
@@ -47,6 +49,7 @@ export async function setGoalStatus(id: string, status: GoalStatus): Promise<Act
 /** Deletes the goal. Its transfers stay (money really moved), just untagged. */
 export async function deleteGoal(id: string): Promise<ActionResult> {
   const user = await requireUser();
+  if (!isId(id)) return INVALID_ID;
   const supabase = await createClient();
   const { data, error } = await supabase.from("savings_goals").delete().eq("id", id).eq("user_id", user.id).select("id");
   if (error) return databaseFailure(error, "delete the goal");
@@ -62,6 +65,7 @@ export async function deleteGoal(id: string): Promise<ActionResult> {
  */
 export async function moveGoalMoney(goalId: string, input: unknown): Promise<ActionResult> {
   const user = await requireUser();
+  if (!isId(goalId)) return INVALID_ID;
   const parsed = contributionSchema.safeParse(input);
   if (!parsed.success) return validationFailure(parsed.error);
   const v = parsed.data;

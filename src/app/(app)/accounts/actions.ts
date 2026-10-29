@@ -2,7 +2,7 @@
 
 import { refresh } from "next/cache";
 import { requireUser } from "@/lib/auth";
-import { databaseFailure, validationFailure, type ActionResult } from "@/lib/action-result";
+import { databaseFailure, INVALID_ID, isId, validationFailure, type ActionResult } from "@/lib/action-result";
 import { createClient } from "@/lib/supabase/server";
 import { accountSchema, categorySchema, parseSignedAmountToMinor } from "@/lib/validation/finance";
 
@@ -10,6 +10,7 @@ type Table = "accounts" | "categories";
 
 async function setArchived(table: Table, id: string, archived: boolean, label: string): Promise<ActionResult> {
   const user = await requireUser();
+  if (!isId(id)) return INVALID_ID;
   const supabase = await createClient();
   const { data, error } = await supabase
     .from(table)
@@ -25,6 +26,7 @@ async function setArchived(table: Table, id: string, archived: boolean, label: s
 
 async function remove(table: Table, id: string, label: string): Promise<ActionResult> {
   const user = await requireUser();
+  if (!isId(id)) return INVALID_ID;
   const supabase = await createClient();
   const { data, error } = await supabase.from(table).delete().eq("id", id).eq("user_id", user.id).select("id");
   if (error) {
@@ -40,6 +42,7 @@ async function remove(table: Table, id: string, label: string): Promise<ActionRe
 
 export async function saveAccount(id: string | null, input: unknown): Promise<ActionResult> {
   const user = await requireUser();
+  if (id !== null && !isId(id)) return INVALID_ID;
   const parsed = accountSchema.safeParse(input);
   if (!parsed.success) return validationFailure(parsed.error);
   const row = {
@@ -67,6 +70,7 @@ export async function deleteAccount(id: string) {
 
 export async function saveCategory(id: string | null, input: unknown): Promise<ActionResult> {
   const user = await requireUser();
+  if (id !== null && !isId(id)) return INVALID_ID;
   const parsed = categorySchema.safeParse(input);
   if (!parsed.success) return validationFailure(parsed.error);
 

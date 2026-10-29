@@ -94,12 +94,29 @@ export function budgetPeriodForMonth(month: IsoDate, startDay: number): BudgetPe
   };
 }
 
+/** The `count` budget periods ending with the one that contains `today`, oldest first. */
+export function recentPeriods(today: IsoDate, monthStartDay: number, count: number): BudgetPeriod[] {
+  const current = parseIsoDate(budgetPeriodFor(today, monthStartDay).month);
+  return Array.from({ length: count }, (_, i) => {
+    const m = addMonths(current.year, current.month, i - count + 1);
+    return budgetPeriodForMonth(toIsoDate(m.year, m.month, 1), monthStartDay);
+  });
+}
+
 const monthLabel = new Intl.DateTimeFormat("en-GB", { month: "long", year: "numeric", timeZone: "UTC" });
 const dayLabel = new Intl.DateTimeFormat("en-GB", { day: "numeric", month: "short", timeZone: "UTC" });
 
 export function formatMonth(date: IsoDate): string {
   const { year, month } = parseIsoDate(date);
   return monthLabel.format(new Date(Date.UTC(year, month - 1, 1)));
+}
+
+const shortMonthLabel = new Intl.DateTimeFormat("en-GB", { month: "short", year: "2-digit", timeZone: "UTC" });
+
+/** "Oct 26", for chart axes. */
+export function formatMonthShort(date: IsoDate): string {
+  const { year, month } = parseIsoDate(date);
+  return shortMonthLabel.format(new Date(Date.UTC(year, month - 1, 1)));
 }
 
 export function formatDay(date: IsoDate): string {

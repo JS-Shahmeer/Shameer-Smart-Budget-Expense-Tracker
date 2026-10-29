@@ -4,8 +4,10 @@ import {
   addMonths,
   budgetPeriodFor,
   daysBetween,
+  formatMonthShort,
   formatPeriod,
   isValidIsoDate,
+  recentPeriods,
   todayIn,
 } from "./dates";
 
@@ -65,5 +67,26 @@ describe("date helpers", () => {
   it("labels periods", () => {
     expect(formatPeriod(budgetPeriodFor("2026-10-29", 1))).toBe("October 2026");
     expect(formatPeriod(budgetPeriodFor("2026-10-29", 25))).toMatch(/^25 Oct – 24 Nov$/);
+  });
+});
+
+describe("recentPeriods", () => {
+  it("ends with the current period and crosses the year boundary", () => {
+    expect(recentPeriods("2027-01-15", 1, 3).map((p) => p.month)).toEqual(["2026-11-01", "2026-12-01", "2027-01-01"]);
+  });
+
+  it("follows the month start day", () => {
+    // 24 Jan with a 25th start is still in December's period.
+    const periods = recentPeriods("2027-01-24", 25, 2);
+    expect(periods).toEqual([
+      { month: "2026-11-01", start: "2026-11-25", end: "2026-12-25" },
+      { month: "2026-12-01", start: "2026-12-25", end: "2027-01-25" },
+    ]);
+  });
+});
+
+describe("formatMonthShort", () => {
+  it("gives a short label for chart axes", () => {
+    expect(formatMonthShort("2026-10-01")).toBe("Oct 26");
   });
 });

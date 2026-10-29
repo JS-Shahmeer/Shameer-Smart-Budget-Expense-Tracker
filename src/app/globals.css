@@ -18,6 +18,11 @@
   --color-negative: #f06a6a;
   --color-warning: #e8b04b;
 
+  /* Chart series, checked for colour-blind separation and 3:1 contrast on the surface. */
+  --color-series-1: #3987e5;
+  --color-series-2: #d95926;
+  --color-series-3: #199e70;
+
   --font-sans: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
   --font-mono: var(--font-geist-mono), ui-monospace, monospace;
 }

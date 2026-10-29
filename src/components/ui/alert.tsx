@@ -1,8 +1,9 @@
-import { AlertTriangle, CircleAlert, Info } from "lucide-react";
+import { AlertTriangle, CheckCircle2, CircleAlert, Info } from "lucide-react";
 import { cn } from "@/lib/cn";
 
 const tones = {
   info: { icon: Info, className: "border-accent/30 bg-accent/10 text-fg" },
+  success: { icon: CheckCircle2, className: "border-positive/30 bg-positive/10 text-fg" },
   warning: { icon: AlertTriangle, className: "border-warning/30 bg-warning/10 text-fg" },
   error: { icon: CircleAlert, className: "border-negative/30 bg-negative/10 text-fg" },
 };

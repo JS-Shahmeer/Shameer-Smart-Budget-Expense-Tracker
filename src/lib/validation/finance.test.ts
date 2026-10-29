@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { budgetSchema, parseSignedAmountToMinor, recurringSchema, transactionSchema } from "./finance";
+import { budgetSchema, parseSignedAmountToMinor, recurringSchema, settingsSchema, transactionSchema } from "./finance";
 
 const A = "3f2b8c1e-6a4d-4e2b-9c1a-0b5d7e8f9a10";
 const B = "7c9d2e3f-1a2b-4c3d-8e4f-5a6b7c8d9e0f";
@@ -66,5 +66,34 @@ describe("parseSignedAmountToMinor", () => {
   it("handles negative opening balances", () => {
     expect(parseSignedAmountToMinor("-1,200.50")).toBe(-120050);
     expect(parseSignedAmountToMinor("abc")).toBeNull();
+  });
+});
+
+describe("settingsSchema", () => {
+  const valid = {
+    displayName: "Shameer",
+    currency: "PKR",
+    timezone: "Asia/Karachi",
+    monthStartDay: "25",
+    paydayDay: "31",
+    budgetWarningPercent: "80",
+  };
+
+  it("accepts sensible settings", () => {
+    expect(settingsSchema.safeParse(valid).success).toBe(true);
+  });
+
+  it.each([
+    ["monthStartDay", "29"],
+    ["monthStartDay", "0"],
+    ["paydayDay", "32"],
+    ["budgetWarningPercent", "101"],
+    ["budgetWarningPercent", "1.5"],
+    ["currency", "XYZ"],
+    ["timezone", "Mars/Olympus"],
+  ])("rejects %s = %s", (field, value) => {
+    const result = settingsSchema.safeParse({ ...valid, [field]: value });
+    expect(result.success).toBe(false);
+    expect(result.error?.issues[0]?.path).toEqual([field]);
   });
 });

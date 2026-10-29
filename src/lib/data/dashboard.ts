@@ -6,6 +6,7 @@ import { summarizeMonth, type MonthSummary } from "@/lib/finance/summary";
 import { createClient } from "@/lib/supabase/server";
 import type { CategoryRow, TransactionRow } from "@/lib/supabase/database.types";
 import { getSettings, type Settings } from "./profile";
+import { readAll } from "./read-all";
 
 export type RecentTransaction = Pick<
   TransactionRow,
@@ -31,12 +32,18 @@ export async function getDashboardData(): Promise<DashboardData> {
   // RLS limits every query to this user; the explicit user_id filter keeps the
   // intent obvious and lets Postgres use the user_id indexes.
   const [transactions, balances, budgets, categories, recent] = await Promise.all([
-    supabase
-      .from("transactions")
-      .select("kind, amount_minor, account_id, to_account_id, category_id, savings_goal_id")
-      .eq("user_id", user.id)
-      .gte("occurred_on", period.start)
-      .lt("occurred_on", period.end),
+    readAll(
+      (from, to) =>
+        supabase
+          .from("transactions")
+          .select("kind, amount_minor, account_id, to_account_id, category_id, savings_goal_id")
+          .eq("user_id", user.id)
+          .gte("occurred_on", period.start)
+          .lt("occurred_on", period.end)
+          .order("id")
+          .range(from, to),
+      "the dashboard",
+    ),
     supabase.from("account_balances").select("account_id, type, is_archived, balance_minor").eq("user_id", user.id),
     supabase.from("budgets").select("category_id, amount_minor").eq("user_id", user.id).eq("month", period.month),
     supabase.from("categories").select("id, name, color").eq("user_id", user.id),
@@ -49,7 +56,7 @@ export async function getDashboardData(): Promise<DashboardData> {
       .limit(6),
   ]);
 
-  for (const result of [transactions, balances, budgets, categories, recent]) {
+  for (const result of [balances, budgets, categories, recent]) {
     if (result.error) throw new Error(`Could not load the dashboard: ${result.error.message}`);
   }
 
@@ -61,7 +68,7 @@ export async function getDashboardData(): Promise<DashboardData> {
     today,
     period,
     summary: summarizeMonth({
-      transactions: transactions.data ?? [],
+      transactions,
       balances: balances.data ?? [],
       budgets: budgets.data ?? [],
       categories: categoryList,
