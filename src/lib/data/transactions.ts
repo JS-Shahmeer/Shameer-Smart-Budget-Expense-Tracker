@@ -17,6 +17,7 @@ export type TransactionListItem = Pick<
   | "account_id"
   | "to_account_id"
   | "category_id"
+  | "savings_goal_id"
   | "payment_method"
   | "description"
   | "note"
@@ -32,7 +33,7 @@ export type TransactionList = {
 };
 
 const COLUMNS =
-  "id, kind, amount_minor, occurred_on, account_id, to_account_id, category_id, payment_method, description, note, recurring_rule_id";
+  "id, kind, amount_minor, occurred_on, account_id, to_account_id, category_id, savings_goal_id, payment_method, description, note, recurring_rule_id";
 
 export async function listTransactions(
   filters: TransactionFilters,

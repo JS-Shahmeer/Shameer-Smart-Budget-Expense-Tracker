@@ -14,7 +14,7 @@ import { AddTransactionButton } from "@/components/transactions/transaction-dial
 import { ButtonLink } from "@/components/ui/button";
 import { getDashboardData, type RecentTransaction } from "@/lib/data/dashboard";
 import { billReminders, getRecurringRules } from "@/lib/data/recurring";
-import { getAccounts, getCategories } from "@/lib/data/reference";
+import { getAccounts, getCategories, getGoalOptions } from "@/lib/data/reference";
 import { formatDay, formatPeriod } from "@/lib/dates";
 import { formatMoney } from "@/lib/money";
 import { cn } from "@/lib/cn";

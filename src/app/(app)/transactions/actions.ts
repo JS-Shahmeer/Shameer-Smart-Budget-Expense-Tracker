@@ -25,6 +25,7 @@ function toRow(input: unknown): { ok: true; row: Row } | { ok: false; failure: A
       account_id: v.accountId,
       to_account_id: isTransfer ? nullIfEmpty(v.toAccountId) : null,
       category_id: isTransfer ? null : nullIfEmpty(v.categoryId),
+      savings_goal_id: isTransfer ? nullIfEmpty(v.savingsGoalId) : null,
       payment_method: v.kind === "expense" && v.paymentMethod ? v.paymentMethod : null,
       description: nullIfEmpty(v.description),
       note: nullIfEmpty(v.note),

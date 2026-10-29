@@ -9,7 +9,7 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { PageHeader } from "@/components/ui/page-header";
 import { Skeleton } from "@/components/ui/skeleton";
 import { getSettings } from "@/lib/data/profile";
-import { getAccounts, getCategories } from "@/lib/data/reference";
+import { getAccounts, getCategories, getGoalOptions } from "@/lib/data/reference";
 import { PAGE_SIZE, listTransactions, parseFilters } from "@/lib/data/transactions";
 import { formatPeriod, todayIn } from "@/lib/dates";
 import { formatMoney } from "@/lib/money";
@@ -25,7 +25,13 @@ export default function TransactionsPage({ searchParams }: PageProps<"/transacti
 }
 
 async function Transactions({ searchParams }: { searchParams: PageProps<"/transactions">["searchParams"] }) {
-  const [params, settings, accounts, categories] = await Promise.all([searchParams, getSettings(), getAccounts(), getCategories()]);
+  const [params, settings, accounts, categories, goals] = await Promise.all([
+    searchParams,
+    getSettings(),
+    getAccounts(),
+    getCategories(),
+    getGoalOptions(),
+  ]);
   const today = todayIn(settings.timezone);
   const filters = parseFilters(params, today, settings.month_start_day);
   const needle = filters.q.toLowerCase();
@@ -47,7 +53,7 @@ async function Transactions({ searchParams }: { searchParams: PageProps<"/transa
       <PageHeader
         title="Transactions"
         description="Income, expenses and transfers between your accounts."
-        actions={<AddTransactionButton accounts={accounts} categories={categories} today={today} />}
+        actions={<AddTransactionButton accounts={accounts} categories={categories} goals={goals} today={today} />}
       />
 
       <TransactionFilters
@@ -83,13 +89,13 @@ async function Transactions({ searchParams }: { searchParams: PageProps<"/transa
               icon={ArrowLeftRight}
               title="No transactions in this period"
               description="Add income, expenses or transfers and they will appear here."
-              action={<AddTransactionButton accounts={accounts} categories={categories} today={today} label="Add the first one" />}
+              action={<AddTransactionButton accounts={accounts} categories={categories} goals={goals} today={today} label="Add the first one" />}
             />
           )}
         </Card>
       ) : (
         <>
-          <TransactionRows items={list.items} accounts={accounts} categories={categories} currency={settings.currency} />
+          <TransactionRows items={list.items} accounts={accounts} categories={categories} goals={goals} currency={settings.currency} />
           {pages > 1 ? (
             <nav aria-label="Pages" className="mt-5 flex items-center justify-between text-sm">
               {filters.page > 1 ? (

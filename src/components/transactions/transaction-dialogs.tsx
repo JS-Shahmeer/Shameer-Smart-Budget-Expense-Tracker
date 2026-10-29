@@ -6,7 +6,7 @@ import { deleteTransaction } from "@/app/(app)/transactions/actions";
 import { Button } from "@/components/ui/button";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { Dialog } from "@/components/ui/dialog";
-import type { AccountOption, CategoryOption } from "@/lib/data/reference";
+import type { AccountOption, CategoryOption, GoalOption } from "@/lib/data/reference";
 import type { TransactionListItem } from "@/lib/data/transactions";
 import { formatDay } from "@/lib/dates";
 import { formatMoney, minorToInputValue } from "@/lib/money";
@@ -15,7 +15,7 @@ import { cn } from "@/lib/cn";
 import type { TransactionInput } from "@/lib/validation/finance";
 import { TransactionForm } from "./transaction-form";
 
-type Reference = { accounts: AccountOption[]; categories: CategoryOption[] };
+type Reference = { accounts: AccountOption[]; categories: CategoryOption[]; goals?: GoalOption[] };
 
 /** Sensible starting values: today, an everyday account, expense. */
 export function newTransactionDefaults(accounts: AccountOption[], today: string): TransactionInput {
@@ -27,13 +27,14 @@ export function newTransactionDefaults(accounts: AccountOption[], today: string)
     accountId: account?.id ?? "",
     toAccountId: "",
     categoryId: "",
+    savingsGoalId: "",
     paymentMethod: "",
     description: "",
     note: "",
   };
 }
 
-export function AddTransactionButton({ accounts, categories, today, label = "Add transaction" }: Reference & { today: string; label?: string }) {
+export function AddTransactionButton({ accounts, categories, goals, today, label = "Add transaction" }: Reference & { today: string; label?: string }) {
   const [open, setOpen] = useState(false);
   return (
     <>
@@ -45,6 +46,7 @@ export function AddTransactionButton({ accounts, categories, today, label = "Add
         <TransactionForm
           accounts={accounts}
           categories={categories}
+          goals={goals}
           defaults={newTransactionDefaults(accounts, today)}
           onDone={() => setOpen(false)}
         />
@@ -57,6 +59,7 @@ export function TransactionRows({
   items,
   accounts,
   categories,
+  goals,
   currency,
 }: Reference & { items: TransactionListItem[]; currency: string }) {
   const [editing, setEditing] = useState<TransactionListItem | null>(null);
@@ -65,6 +68,7 @@ export function TransactionRows({
   const [pending, startTransition] = useTransition();
   const accountById = new Map(accounts.map((a) => [a.id, a]));
   const categoryById = new Map(categories.map((c) => [c.id, c]));
+  const goalById = new Map((goals ?? []).map((g) => [g.id, g]));
 
   // Group by day, newest first (the list already arrives in that order).
   const groups: { date: string; items: TransactionListItem[] }[] = [];
@@ -96,6 +100,7 @@ export function TransactionRows({
                   t.kind === "transfer" ? (t.description ? `${from?.name} → ${to?.name}` : "Transfer") : category?.name,
                   t.kind !== "transfer" ? from?.name : null,
                   t.payment_method ? PAYMENT_METHOD_LABELS[t.payment_method] : null,
+                  t.savings_goal_id ? `Goal: ${goalById.get(t.savings_goal_id)?.name ?? "removed"}` : null,
                 ].filter((part) => part && part !== title);
 
                 return (
@@ -156,6 +161,7 @@ export function TransactionRows({
             key={editing.id}
             accounts={accounts}
             categories={categories}
+            goals={goals}
             transactionId={editing.id}
             defaults={{
               kind: editing.kind,
@@ -164,6 +170,7 @@ export function TransactionRows({
               accountId: editing.account_id,
               toAccountId: editing.to_account_id ?? "",
               categoryId: editing.category_id ?? "",
+              savingsGoalId: editing.savings_goal_id ?? "",
               paymentMethod: editing.payment_method ?? "",
               description: editing.description ?? "",
               note: editing.note ?? "",

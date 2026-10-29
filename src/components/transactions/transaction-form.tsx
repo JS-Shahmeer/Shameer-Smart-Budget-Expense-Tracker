@@ -8,20 +8,21 @@ import { Alert } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Field, Input, Select, Textarea, fieldAria } from "@/components/ui/input";
 import { Segmented } from "@/components/ui/segmented";
-import type { AccountOption, CategoryOption } from "@/lib/data/reference";
+import type { AccountOption, CategoryOption, GoalOption } from "@/lib/data/reference";
 import { ACCOUNT_TYPE_LABELS, PAYMENT_METHOD_LABELS } from "@/lib/labels";
 import { PAYMENT_METHODS, transactionSchema, type TransactionInput } from "@/lib/validation/finance";
 
 export type TransactionFormProps = {
   accounts: AccountOption[];
   categories: CategoryOption[];
+  goals?: GoalOption[];
   /** Present when editing. */
   transactionId?: string;
   defaults: TransactionInput;
   onDone: () => void;
 };
 
-export function TransactionForm({ accounts, categories, transactionId, defaults, onDone }: TransactionFormProps) {
+export function TransactionForm({ accounts, categories, goals = [], transactionId, defaults, onDone }: TransactionFormProps) {
   const [pending, startTransition] = useTransition();
   const [formError, setFormError] = useState<string | null>(null);
   const {
@@ -126,6 +127,21 @@ export function TransactionForm({ accounts, categories, transactionId, defaults,
           </Field>
         )}
       </div>
+
+      {kind === "transfer" && goals.some((g) => g.status === "active" || g.id === defaults.savingsGoalId) ? (
+        <Field id="tx-goal" label="Savings goal (optional)" error={err("savingsGoalId")}>
+          <Select {...fieldAria("tx-goal", err("savingsGoalId"))} {...register("savingsGoalId")}>
+            <option value="">None</option>
+            {goals
+              .filter((g) => g.status === "active" || g.id === defaults.savingsGoalId)
+              .map((g) => (
+                <option key={g.id} value={g.id}>
+                  {g.name}
+                </option>
+              ))}
+          </Select>
+        </Field>
+      ) : null}
 
       {kind === "transfer" ? (
         <p className="text-xs text-subtle">
