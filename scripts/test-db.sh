@@ -36,6 +36,7 @@ for migration in "$root"/supabase/migrations/*.sql; do
   echo "migrate: $(basename "$migration")"
   psql_run -f "$migration"
 done
+psql_run -f "$root/db-tests/helpers.sql"
 for test in "$root"/db-tests/*.test.sql; do
   echo "test: $(basename "$test")"
   psql_run -f "$test" >/dev/null

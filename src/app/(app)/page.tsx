@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import Link from "next/link";
 import { Suspense } from "react";
 import { ArrowDownLeft, ArrowLeftRight, ArrowUpRight, PiggyBank, Wallet } from "lucide-react";
 import { Alert } from "@/components/ui/alert";
@@ -8,7 +9,12 @@ import { PageHeader } from "@/components/ui/page-header";
 import { Progress } from "@/components/ui/progress";
 import { Skeleton } from "@/components/ui/skeleton";
 import { StatCard } from "@/components/ui/stat-card";
+import { DueList } from "@/components/recurring/recurring-views";
+import { AddTransactionButton } from "@/components/transactions/transaction-dialogs";
+import { ButtonLink } from "@/components/ui/button";
 import { getDashboardData, type RecentTransaction } from "@/lib/data/dashboard";
+import { billReminders, getRecurringRules } from "@/lib/data/recurring";
+import { getAccounts, getCategories } from "@/lib/data/reference";
 import { formatDay, formatPeriod } from "@/lib/dates";
 import { formatMoney } from "@/lib/money";
 import { cn } from "@/lib/cn";
@@ -24,7 +30,13 @@ export default function DashboardPage() {
 }
 
 async function Dashboard() {
-  const { settings, period, summary, recent, hasAnyTransactions } = await getDashboardData();
+  const [{ settings, today, period, summary, recent, hasAnyTransactions }, accounts, categories, rules] = await Promise.all([
+    getDashboardData(),
+    getAccounts(),
+    getCategories(),
+    getRecurringRules(),
+  ]);
+  const bills = billReminders(rules, today);
   const money = (minor: number) => formatMoney(minor, settings.currency);
   const overBudget = summary.budgets.filter((b) => b.status === "over");
   const nearBudget = summary.budgets.filter((b) => b.status === "warning");
@@ -34,7 +46,22 @@ async function Dashboard() {
       <PageHeader
         title={settings.display_name ? `Hello, ${settings.display_name}` : "Dashboard"}
         description={`Budget month: ${formatPeriod(period)}`}
+        actions={<AddTransactionButton accounts={accounts} categories={categories} today={today} />}
       />
+
+      {bills.length > 0 ? (
+        <Card className="mb-4">
+          <CardHeader>
+            <CardTitle>Bills due soon</CardTitle>
+            <Link href="/recurring" className="text-sm text-accent hover:underline">
+              All recurring
+            </Link>
+          </CardHeader>
+          <CardContent className="pt-1">
+            <DueList items={bills} currency={settings.currency} compact />
+          </CardContent>
+        </Card>
+      ) : null}
 
       {overBudget.length > 0 ? (
         <Alert tone="error" title="Over budget" className="mb-4">
@@ -86,7 +113,12 @@ async function Dashboard() {
               <EmptyState
                 icon={Wallet}
                 title="No budgets for this month"
-                description="Category budgets arrive in the next update. Once set, you will see how much of each is used here."
+                description="Set monthly limits for categories like food and transport to see how much of each is used."
+                action={
+                  <ButtonLink href="/budgets" variant="secondary" size="sm">
+                    Set budgets
+                  </ButtonLink>
+                }
               />
             ) : (
               <ul className="space-y-4">

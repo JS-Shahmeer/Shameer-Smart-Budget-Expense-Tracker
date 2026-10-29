@@ -1,29 +1,6 @@
 -- Row Level Security and data integrity checks. Run with scripts/test-db.sh.
 -- Each failed expectation raises, which stops the run with ON_ERROR_STOP.
 
-create function public.test_assert(ok boolean, message text) returns void
-language plpgsql as $$
-begin
-  if ok is not true then
-    raise exception 'assertion failed: %', message;
-  end if;
-end;
-$$;
-
--- Runs a statement and asserts that it fails.
-create function public.test_expect_error(statement text, message text) returns void
-language plpgsql as $$
-begin
-  execute statement;
-  raise exception 'expected an error: %', message;
-exception
-  -- Only integrity and permission errors count. A typo in a test statement
-  -- (syntax error, unknown column) must not pass as an expected failure.
-  when check_violation or foreign_key_violation or unique_violation
-    or not_null_violation or insufficient_privilege then null;
-end;
-$$;
-
 -- Two users. The signup trigger gives each a profile, accounts and categories.
 insert into auth.users (id, email, raw_user_meta_data) values
   ('00000000-0000-0000-0000-00000000000a', 'a@example.com', '{"display_name":"Alice"}'),
@@ -177,5 +154,3 @@ delete from auth.users where id = '00000000-0000-0000-0000-00000000000a';
 select public.test_assert((select count(*) = 0 from public.transactions), 'user data deleted with the account');
 select public.test_assert((select count(*) = 3 from public.accounts), 'other user untouched');
 
-drop function public.test_assert(boolean, text);
-drop function public.test_expect_error(text, text);

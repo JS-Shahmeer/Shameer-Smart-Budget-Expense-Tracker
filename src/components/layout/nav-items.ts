@@ -4,6 +4,7 @@ import {
   CalendarClock,
   Calculator,
   FileText,
+  Landmark,
   LayoutDashboard,
   PiggyBank,
   Settings,
@@ -22,6 +23,7 @@ export const NAV_ITEMS: NavItem[] = [
   { href: "/recurring", label: "Recurring & bills", icon: CalendarClock },
   { href: "/analytics", label: "Analytics", icon: BarChart3 },
   { href: "/reports", label: "Reports", icon: FileText },
+  { href: "/accounts", label: "Accounts & categories", icon: Landmark },
   { href: "/settings", label: "Settings", icon: Settings },
 ];
 
