@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { Suspense } from "react";
-import { ArrowDownLeft, ArrowLeftRight, ArrowUpRight, PiggyBank, Wallet } from "lucide-react";
+import { ArrowDownLeft, ArrowLeftRight, ArrowUpRight, Gauge, PiggyBank, Wallet } from "lucide-react";
 import { Alert } from "@/components/ui/alert";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/empty-state";
@@ -13,8 +13,9 @@ import { DueList } from "@/components/recurring/recurring-views";
 import { AddTransactionButton } from "@/components/transactions/transaction-dialogs";
 import { ButtonLink } from "@/components/ui/button";
 import { getDashboardData, type RecentTransaction } from "@/lib/data/dashboard";
+import { getPlannerSnapshot } from "@/lib/data/planner";
 import { billReminders, getRecurringRules } from "@/lib/data/recurring";
-import { getAccounts, getCategories } from "@/lib/data/reference";
+import { getAccounts, getCategories, getGoalOptions } from "@/lib/data/reference";
 import { formatDay, formatPeriod } from "@/lib/dates";
 import { formatMoney } from "@/lib/money";
 import { cn } from "@/lib/cn";
@@ -30,12 +31,14 @@ export default function DashboardPage() {
 }
 
 async function Dashboard() {
-  const [{ settings, today, period, summary, recent, hasAnyTransactions }, accounts, categories, rules] = await Promise.all([
+  const [{ settings, today, period, summary, recent, hasAnyTransactions }, accounts, categories, rules, goals] = await Promise.all([
     getDashboardData(),
     getAccounts(),
     getCategories(),
     getRecurringRules(),
+    getGoalOptions(),
   ]);
+  const { plan } = await getPlannerSnapshot(settings, today);
   const bills = billReminders(rules, today);
   const money = (minor: number) => formatMoney(minor, settings.currency);
   const overBudget = summary.budgets.filter((b) => b.status === "over");
@@ -46,8 +49,27 @@ async function Dashboard() {
       <PageHeader
         title={settings.display_name ? `Hello, ${settings.display_name}` : "Dashboard"}
         description={`Budget month: ${formatPeriod(period)}`}
-        actions={<AddTransactionButton accounts={accounts} categories={categories} today={today} />}
+        actions={<AddTransactionButton accounts={accounts} categories={categories} goals={goals} today={today} />}
       />
+
+      <Link
+        href="/planner"
+        className="mb-4 flex flex-wrap items-center justify-between gap-x-6 gap-y-1 rounded-xl border border-line bg-surface px-5 py-4 hover:border-line-strong"
+      >
+        <span className="flex items-center gap-3">
+          <Gauge aria-hidden className="size-5 text-accent" />
+          <span>
+            <span className="block text-sm text-muted">Safe to spend today</span>
+            <span className={cn("tabular text-2xl font-semibold", plan.leftTodayMinor < 0 ? "text-negative" : "text-fg")}>
+              {money(plan.leftTodayMinor)}
+            </span>
+          </span>
+        </span>
+        <span className="text-sm text-subtle">
+          {money(plan.dailyLimitMinor)} a day for {plan.daysLeft} day{plan.daysLeft === 1 ? "" : "s"} until payday ·{" "}
+          {money(plan.billsMinor + plan.savingsMinor)} set aside for bills and savings
+        </span>
+      </Link>
 
       {bills.length > 0 ? (
         <Card className="mb-4">

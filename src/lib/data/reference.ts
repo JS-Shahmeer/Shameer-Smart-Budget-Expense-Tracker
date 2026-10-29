@@ -2,11 +2,13 @@ import "server-only";
 
 import { requireUser } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
-import type { AccountBalanceRow, AccountRow, CategoryRow } from "@/lib/supabase/database.types";
+import type { AccountBalanceRow, AccountRow, CategoryRow, SavingsGoalRow } from "@/lib/supabase/database.types";
 
 export type AccountOption = Pick<AccountRow, "id" | "name" | "type" | "is_archived" | "opening_balance_minor"> & {
   balance_minor: number;
 };
+export type GoalOption = Pick<SavingsGoalRow, "id" | "name" | "status">;
+
 export type CategoryOption = Pick<CategoryRow, "id" | "name" | "kind" | "color" | "icon" | "is_archived">;
 
 /** The user's accounts with current balances, active ones first. */
@@ -41,5 +43,19 @@ export async function getCategories(): Promise<CategoryOption[]> {
     .order("kind")
     .order("name");
   if (error) throw new Error(`Could not load categories: ${error.message}`);
+  return data;
+}
+
+/** Goals for pickers, active first. */
+export async function getGoalOptions(): Promise<GoalOption[]> {
+  const user = await requireUser();
+  const supabase = await createClient();
+  const { data, error } = await supabase
+    .from("savings_goals")
+    .select("id, name, status")
+    .eq("user_id", user.id)
+    .order("status")
+    .order("name");
+  if (error) throw new Error(`Could not load savings goals: ${error.message}`);
   return data;
 }

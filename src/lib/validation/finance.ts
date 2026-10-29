@@ -34,6 +34,7 @@ export const transactionSchema = z
     accountId: uuid,
     toAccountId: optionalUuid,
     categoryId: optionalUuid,
+    savingsGoalId: optionalUuid,
     paymentMethod: z.union([z.enum(PAYMENT_METHODS), z.literal("")]).optional(),
     description: optionalText(120),
     note: optionalText(500),
@@ -58,6 +59,28 @@ export const accountSchema = z.object({
     .trim()
     .refine((value) => value === "" || value === "0" || parseSignedAmountToMinor(value) !== null, "Enter a valid amount"),
 });
+
+const optionalAmount = z.union([amountField, z.literal("")]).optional();
+
+export const goalSchema = z.object({
+  name: z.string().trim().min(1, "Enter a name").max(60, "Keep it under 60 characters"),
+  target: amountField,
+  starting: optionalAmount,
+  targetDate: z.union([dateField, z.literal("")]).optional(),
+  monthlyContribution: optionalAmount,
+  accountId: optionalUuid,
+});
+
+export type GoalFormInput = z.infer<typeof goalSchema>;
+
+export const contributionSchema = z.object({
+  direction: z.enum(["add", "withdraw"]),
+  amount: amountField,
+  accountId: uuid,
+  occurredOn: dateField,
+});
+
+export type ContributionInput = z.infer<typeof contributionSchema>;
 
 export type AccountInput = z.infer<typeof accountSchema>;
 

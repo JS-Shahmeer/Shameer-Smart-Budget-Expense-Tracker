@@ -15,6 +15,7 @@ export type RecurringRule = Pick<
   | "account_id"
   | "to_account_id"
   | "category_id"
+  | "savings_goal_id"
   | "payment_method"
   | "frequency"
   | "interval_count"
@@ -32,7 +33,7 @@ export async function getRecurringRules(): Promise<RecurringRule[]> {
   const { data, error } = await supabase
     .from("recurring_rules")
     .select(
-      "id, name, kind, amount_minor, account_id, to_account_id, category_id, payment_method, frequency, interval_count, start_on, end_on, next_due_on, is_bill, remind_days_before, is_active",
+      "id, name, kind, amount_minor, account_id, to_account_id, category_id, savings_goal_id, payment_method, frequency, interval_count, start_on, end_on, next_due_on, is_bill, remind_days_before, is_active",
     )
     .eq("user_id", user.id)
     .order("is_active", { ascending: false })
