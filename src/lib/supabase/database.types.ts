@@ -97,6 +97,8 @@ export type TransactionRow = Timestamps & {
   note: string | null;
   recurring_rule_id: string | null;
   recurrence_date: string | null;
+  /** Set on imported rows (statement or SMS) so the same source row is saved once. */
+  import_ref: string | null;
 };
 
 export type BudgetRow = Timestamps & {

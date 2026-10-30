@@ -12,6 +12,7 @@ Built with Next.js 16 (App Router), TypeScript, Tailwind CSS 4 and Supabase (aut
 | 2 | Transactions, transfers, accounts and categories, budgets, recurring bills | Done |
 | 3 | Savings goals, daily spending limit, affordability calculator | Done |
 | 4 | Charts, monthly reports and CSV export, settings, final hardening | Done |
+| 5 | Bank statement import (CSV/Excel); SMS alert capture next | In progress |
 
 ## Getting started
 
@@ -55,6 +56,7 @@ Import the repository in Vercel, add `NEXT_PUBLIC_SUPABASE_URL` and `NEXT_PUBLIC
 - **Analytics** cover the last 3, 6 or 12 budget months. Averages only count months that have something recorded, and the savings rate is money saved divided by income.
 - **Reports** compare a budget month with the one before it. The CSV export (one month, or everything) has one row per transaction with names instead of ids. Text that a spreadsheet would run as a formula is prefixed with an apostrophe.
 - **Changing currency** only changes how amounts are labelled. Nothing is converted.
+- **Statement import** (Transactions → Import statement) reads a CSV or Excel statement in the browser, guesses the date, description and debit/credit (or signed amount) columns, and suggests a category from your past choices or common merchants. ATM withdrawals are suggested as transfers to your cash account. Each imported row stores a key made from the account, date, amount, direction and description, so importing the same or an overlapping statement again skips rows already saved. Rows that match a hand-entered transaction (same account, day, amount and direction) are flagged and left unticked.
 
 ## Security
 
