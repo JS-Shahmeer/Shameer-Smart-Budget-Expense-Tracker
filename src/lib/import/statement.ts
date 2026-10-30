@@ -80,6 +80,8 @@ export type Mapping = {
   /** Separate columns for money out and money in. Used when `amount` is -1. */
   debit: number;
   credit: number;
+  /** Running balance after each row, when the statement has one. Used to check and set the account's balance. */
+  balance: number;
 };
 
 const HEADERS = {
@@ -88,6 +90,7 @@ const HEADERS = {
   debit: ["debit", "withdrawal", "withdrawals", "money out", "paid out", "dr"],
   credit: ["credit", "deposit", "deposits", "money in", "paid in", "cr"],
   amount: ["amount", "transaction amount", "amount (pkr)"],
+  balance: ["balance", "running balance", "available balance", "closing balance", "balance (pkr)"],
 };
 
 const clean = (text: string) => text.toLowerCase().replace(/[^a-z ()]/g, " ").replace(/\s+/g, " ").trim();
@@ -132,7 +135,8 @@ export function guessMapping(header: Cell[]): Mapping {
   const credit = take(HEADERS.credit);
   const amount = debit >= 0 && credit >= 0 ? -1 : take(HEADERS.amount);
   const description = take(HEADERS.description);
-  return { date, description, amount, debit: amount >= 0 ? -1 : debit, credit: amount >= 0 ? -1 : credit };
+  const balance = take(HEADERS.balance);
+  return { date, description, amount, debit: amount >= 0 ? -1 : debit, credit: amount >= 0 ? -1 : credit, balance };
 }
 
 export type DateOrder = "dmy" | "mdy" | "ymd";
@@ -221,6 +225,8 @@ export type StatementRow = {
   /** Always positive; `kind` gives the direction. */
   amountMinor: number;
   kind: "income" | "expense";
+  /** The statement's balance after this row, in signed minor units, or null when there is no balance column. */
+  balanceMinor: number | null;
 };
 
 export type Extracted = { rows: StatementRow[]; skipped: number[] };
@@ -257,9 +263,33 @@ export function extractRows(sheet: Sheet, headerRow: number, mapping: Mapping, o
       description: at(mapping.description).replace(/\s+/g, " ").slice(0, 120),
       amountMinor: Math.abs(signed),
       kind: signed > 0 ? "income" : "expense",
+      balanceMinor: mapping.balance >= 0 ? parseBalance(at(mapping.balance)) : null,
     });
   }
   return { rows, skipped };
+}
+
+function parseBalance(text: string): number | null {
+  return text.trim() === "" ? null : parseStatementAmount(text);
+}
+
+const signedOf = (row: Pick<StatementRow, "kind" | "amountMinor">) => (row.kind === "income" ? row.amountMinor : -row.amountMinor);
+
+/**
+ * The account balance before the first and after the last transaction, worked
+ * out from the statement's balance column. Statements list rows oldest first
+ * or newest first; the order is the one in which every balance follows from
+ * the one before. Returns null when a balance is missing or the balances don't
+ * add up, so a misread file never sets a wrong balance.
+ */
+export function statementBalances(rows: Pick<StatementRow, "kind" | "amountMinor" | "balanceMinor">[]): { openingMinor: number; closingMinor: number } | null {
+  if (rows.length === 0 || rows.some((r) => r.balanceMinor === null)) return null;
+  const b = rows.map((r) => r.balanceMinor!);
+  const s = rows.map(signedOf);
+  const last = rows.length - 1;
+  if (b.every((balance, i) => i === 0 || balance === b[i - 1] + s[i])) return { openingMinor: b[0] - s[0], closingMinor: b[last] };
+  if (b.every((balance, i) => i === 0 || b[i - 1] === balance + s[i - 1])) return { openingMinor: b[last] - s[last], closingMinor: b[0] };
+  return null;
 }
 
 /** Lower-case words without reference numbers, so "POS 123456 KFC DHA" and "POS 998877 KFC DHA" compare equal. */

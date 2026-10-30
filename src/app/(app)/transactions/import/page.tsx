@@ -3,7 +3,7 @@ import { Suspense } from "react";
 import { StatementImport } from "@/components/transactions/statement-import";
 import { PageHeader } from "@/components/ui/page-header";
 import { Skeleton } from "@/components/ui/skeleton";
-import { getCategorizedDescriptions } from "@/lib/data/imports";
+import { getCategorizedDescriptions, getImportedCounts } from "@/lib/data/imports";
 import { getSettings } from "@/lib/data/profile";
 import { getAccounts, getCategories } from "@/lib/data/reference";
 
@@ -30,5 +30,14 @@ async function Importer() {
     getCategories(),
     getCategorizedDescriptions(),
   ]);
-  return <StatementImport accounts={accounts} categories={categories} history={history} currency={settings.currency} />;
+  const importedCounts = await getImportedCounts(accounts.map((a) => a.id));
+  return (
+    <StatementImport
+      accounts={accounts}
+      categories={categories}
+      history={history}
+      importedCounts={importedCounts}
+      currency={settings.currency}
+    />
+  );
 }

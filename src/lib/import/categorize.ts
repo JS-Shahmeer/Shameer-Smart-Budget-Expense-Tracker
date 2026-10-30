@@ -7,8 +7,14 @@ import { normalizeDescription } from "./statement";
 
 type Category = { id: string; name: string; kind: CategoryKind; is_archived: boolean };
 
-/** Keywords per default category name. Matching is on whole words of the normalised description. */
-const RULES: { category: string; kind: CategoryKind; words: string[] }[] = [
+/**
+ * Keywords per category. A rule picks the first of its category names you
+ * have, so "Bank fees" and "Cash spending" work once you add those categories.
+ * Matching is on whole words of the normalised description.
+ */
+const RULES: { category: string | string[]; kind: CategoryKind; words: string[] }[] = [
+  { category: ["Bank fees", "Bank charges", "Fees"], kind: "expense", words: ["withdrawal fee", "fee", "fees", "service charges", "sms charges", "excise duty", "withholding tax", "wht"] },
+  { category: ["Cash spending", "Cash"], kind: "expense", words: ["cash withdrawal", "atm withdrawal", "atm"] },
   { category: "Salary", kind: "income", words: ["salary", "payroll", "pay roll"] },
   { category: "Food", kind: "expense", words: ["foodpanda", "kfc", "mcdonalds", "mcdonald", "pizza", "restaurant", "cafe", "bakery", "bakers", "dhaba", "hardees", "subway", "imtiaz", "chase up", "al fatah", "metro", "carrefour", "grocery", "naheed"] },
   { category: "Transport", kind: "expense", words: ["careem", "uber", "indrive", "indriver", "bykea", "yango", "petrol", "fuel", "pso", "shell", "total parco", "attock", "motorway", "m tag", "mtag"] },
@@ -43,7 +49,8 @@ export function suggestCategory(description: string, kind: CategoryKind, categor
   for (const rule of RULES) {
     if (rule.kind !== kind) continue;
     if (!rule.words.some((w) => padded.includes(` ${w} `))) continue;
-    const match = usable.find((c) => c.name.toLowerCase() === rule.category.toLowerCase());
+    const names = [rule.category].flat().map((n) => n.toLowerCase());
+    const match = names.map((n) => usable.find((c) => c.name.toLowerCase() === n)).find(Boolean);
     if (match) return match.id;
   }
 
@@ -53,9 +60,10 @@ export function suggestCategory(description: string, kind: CategoryKind, categor
 }
 
 /**
- * Cash taken out at an ATM is a move from the bank to your wallet, not
- * spending, so it is suggested as a transfer to your cash account when you
- * have one.
+ * For people who record what they spend from cash: cash taken out at an ATM
+ * is then a move from the bank to the wallet, not spending, so it is suggested
+ * as a transfer to the cash account. Without that, the cash account would
+ * grow by every withdrawal while the spending never shows up.
  */
 export function suggestTransferAccount(
   description: string,

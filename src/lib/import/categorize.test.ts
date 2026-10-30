@@ -30,6 +30,19 @@ describe("suggestCategory", () => {
     expect(suggestCategory("RAAST P2P IN", "income", categories, none)).toBe("other-income");
   });
 
+  it("puts cash withdrawals and bank fees in those categories when you have them", () => {
+    const more = [
+      ...categories,
+      { id: "cash", name: "Cash spending", kind: "expense" as const, is_archived: false },
+      { id: "fees", name: "Bank charges", kind: "expense" as const, is_archived: false },
+    ];
+    expect(suggestCategory("CASH WITHDRAWAL - 1 LINK", "expense", more, none)).toBe("cash");
+    expect(suggestCategory("CASH WITHDRAWAL - ATM (BR: 1052)", "expense", more, none)).toBe("cash");
+    expect(suggestCategory("1LINK WITHDRAWAL FEE", "expense", more, none)).toBe("fees");
+    expect(suggestCategory("UBL ATM WITHDRAWAL FEE (BR: 1052)", "expense", more, none)).toBe("fees");
+    expect(suggestCategory("CASH WITHDRAWAL - 1 LINK", "expense", categories, none)).toBe("misc");
+  });
+
   it("repeats what you chose before, newest choice first", () => {
     const learned = learnFromHistory([
       { description: "POS 777777 IMTIAZ SUPER MARKET", category_id: "groceries" },
