@@ -9,6 +9,7 @@ import {
   parseStatementAmount,
   parseStatementDate,
   sheetFromCells,
+  statementBalances,
   statementKeys,
 } from "./statement";
 
@@ -54,7 +55,7 @@ describe("reading a statement", () => {
   });
 
   it("guesses date, description and debit/credit columns", () => {
-    expect(mapping).toEqual({ date: 0, description: 2, amount: -1, debit: 4, credit: 5 });
+    expect(mapping).toEqual({ date: 0, description: 2, amount: -1, debit: 4, credit: 5, balance: 6 });
   });
 
   it("reads transactions and skips the opening balance and the total", () => {
@@ -65,12 +66,26 @@ describe("reading a statement", () => {
       ["2026-10-13", "expense", 500000, "IBFT TO JAZZCASH 0300xxxx"],
     ]);
     expect(skipped).toHaveLength(2);
+    expect(rows.map((r) => r.balanceMinor)).toEqual([20000000, 19764950, 19264950]);
+  });
+
+  it("works out the balance before and after the statement", () => {
+    const { rows } = extractRows(sheet, header, mapping, "dmy");
+    expect(statementBalances(rows)).toEqual({ openingMinor: 5000000, closingMinor: 19264950 });
+    expect(statementBalances([...rows].reverse())).toEqual({ openingMinor: 5000000, closingMinor: 19264950 });
+  });
+
+  it("gives no balances when they are missing or don't add up", () => {
+    const { rows } = extractRows(sheet, header, mapping, "dmy");
+    expect(statementBalances(rows.map((r, i) => (i === 1 ? { ...r, balanceMinor: null } : r)))).toBeNull();
+    expect(statementBalances(rows.map((r, i) => (i === 1 ? { ...r, balanceMinor: 1 } : r)))).toBeNull();
+    expect(statementBalances([])).toBeNull();
   });
 
   it("reads a single signed amount column", () => {
     const signed = parseCsv("Date,Narration,Amount\n2026-10-02,Coffee,-450\n2026-10-03,Refund,450");
     const m = guessMapping(signed[0]);
-    expect(m).toMatchObject({ date: 0, description: 1, amount: 2, debit: -1, credit: -1 });
+    expect(m).toMatchObject({ date: 0, description: 1, amount: 2, debit: -1, credit: -1, balance: -1 });
     expect(extractRows(signed, 0, m, "dmy").rows.map((r) => [r.kind, r.amountMinor])).toEqual([
       ["expense", 45000],
       ["income", 45000],

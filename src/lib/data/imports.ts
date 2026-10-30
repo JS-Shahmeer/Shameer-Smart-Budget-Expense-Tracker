@@ -21,3 +21,22 @@ export async function getCategorizedDescriptions(limit = 1000): Promise<Categori
   if (error) throw new Error(`Could not load past categories: ${error.message}`);
   return data;
 }
+
+/** How many imported transactions touch each account, for removing an import. */
+export async function getImportedCounts(accountIds: string[]): Promise<Record<string, number>> {
+  const user = await requireUser();
+  const supabase = await createClient();
+  const counts = await Promise.all(
+    accountIds.map(async (id) => {
+      const { count, error } = await supabase
+        .from("transactions")
+        .select("id", { count: "exact", head: true })
+        .eq("user_id", user.id)
+        .not("import_ref", "is", null)
+        .or(`account_id.eq.${id},to_account_id.eq.${id}`);
+      if (error) throw new Error(`Could not count imported transactions: ${error.message}`);
+      return [id, count ?? 0] as const;
+    }),
+  );
+  return Object.fromEntries(counts);
+}

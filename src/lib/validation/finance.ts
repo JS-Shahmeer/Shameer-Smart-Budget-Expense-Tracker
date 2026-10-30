@@ -202,3 +202,11 @@ export const importCommitSchema = z
   .max(MAX_IMPORT_ROWS, `Import at most ${MAX_IMPORT_ROWS} rows at a time`);
 
 export type ImportCommitRow = z.infer<typeof importCommitSchema>[number];
+
+/** The account balance before a statement's first row, to set as the account's starting balance. */
+export const importOpeningSchema = z
+  .object({
+    openingBalanceMinor: z.number().int().refine((n) => Math.abs(n) < MAX_AMOUNT_MINOR, "That balance is too large"),
+    from: dateField,
+  })
+  .nullable();

@@ -5,17 +5,29 @@ import { requireUser } from "@/lib/auth";
 import { databaseFailure, INVALID_ID, isId, type ActionResult } from "@/lib/action-result";
 import { statementRefs } from "@/lib/import/refs";
 import { createClient } from "@/lib/supabase/server";
-import { importCheckSchema, importCommitSchema } from "@/lib/validation/finance";
+import { importCheckSchema, importCommitSchema, importOpeningSchema } from "@/lib/validation/finance";
 
 export type RowStatus = "new" | "imported" | "possible-duplicate";
 
 export type CheckResult = { ok: true; statuses: RowStatus[] } | { ok: false; error: string };
-export type CommitResult = { ok: true; imported: number; alreadyThere: number } | { ok: false; error: string };
+export type CommitResult =
+  | {
+      ok: true;
+      imported: number;
+      alreadyThere: number;
+      /** Whether the account's starting balance was set from the statement, or why not. */
+      opening: "set" | "earlier-transactions" | null;
+      /** The account's balance in the app after the import. */
+      balanceMinor: number | null;
+    }
+  | { ok: false; error: string };
+export type RemoveResult = { ok: true; removed: number } | { ok: false; error: string };
 
 /** The message of a failed ActionResult, for the result types below. */
 const failed = (result: ActionResult) => ({ ok: false as const, error: result.ok ? "Something went wrong." : result.error });
 
-const IN_CHUNK = 200;
+// Each ref is about 45 characters in the request URL; servers refuse URLs over a few KB.
+const IN_CHUNK = 50;
 const INSERT_CHUNK = 500;
 
 /**
@@ -69,13 +81,20 @@ export async function checkImport(accountId: string, input: unknown): Promise<Ch
  * file and `selected` the indexes to save: import keys number repeated rows by
  * their position in the whole file, so they must be worked out over all rows.
  * Rows imported before are skipped by the database.
+ *
+ * `opening` is the balance the statement starts from. It becomes the account's
+ * starting balance so the app shows what the bank shows, unless the account
+ * already has transactions before the statement, which that balance would
+ * count twice.
  */
-export async function commitImport(accountId: string, input: unknown, selected: number[]): Promise<CommitResult> {
+export async function commitImport(accountId: string, input: unknown, selected: number[], opening: unknown = null): Promise<CommitResult> {
   const user = await requireUser();
   if (!isId(accountId)) return INVALID_ID;
   const parsed = importCommitSchema.safeParse(input);
   if (!parsed.success) return { ok: false, error: parsed.error.issues[0]?.message ?? "Some rows are not valid." };
   const rows = parsed.data;
+  const start = importOpeningSchema.safeParse(opening);
+  if (!start.success) return { ok: false, error: start.error.issues[0]?.message ?? "The statement balance is not valid." };
   if (!Array.isArray(selected) || !selected.every((i) => Number.isInteger(i) && i >= 0 && i < rows.length)) {
     return { ok: false, error: "Choose at least one row to import." };
   }
@@ -116,6 +135,55 @@ export async function commitImport(accountId: string, input: unknown, selected: 
     }
     imported += data.length;
   }
+
+  let openingOutcome: "set" | "earlier-transactions" | null = null;
+  if (start.data) {
+    const { count, error: countError } = await supabase
+      .from("transactions")
+      .select("id", { count: "exact", head: true })
+      .eq("user_id", user.id)
+      .or(`account_id.eq.${accountId},to_account_id.eq.${accountId}`)
+      .lt("occurred_on", start.data.from);
+    if (countError) return failed(databaseFailure(countError, "check the account's earlier transactions"));
+    if (count === 0) {
+      const { error: updateError } = await supabase
+        .from("accounts")
+        .update({ opening_balance_minor: start.data.openingBalanceMinor })
+        .eq("id", accountId)
+        .eq("user_id", user.id);
+      if (updateError) return failed(databaseFailure(updateError, "set the account's starting balance"));
+      openingOutcome = "set";
+    } else {
+      openingOutcome = "earlier-transactions";
+    }
+  }
+
+  const { data: balance } = await supabase
+    .from("account_balances")
+    .select("balance_minor")
+    .eq("user_id", user.id)
+    .eq("account_id", accountId)
+    .maybeSingle();
   refresh();
-  return { ok: true, imported, alreadyThere: inserts.length - imported };
+  return { ok: true, imported, alreadyThere: inserts.length - imported, opening: openingOutcome, balanceMinor: balance?.balance_minor ?? null };
+}
+
+/**
+ * Removes every imported transaction that touches `accountId`, so a statement
+ * imported with the wrong choices can be imported again. Transactions entered
+ * by hand are kept.
+ */
+export async function removeImported(accountId: string): Promise<RemoveResult> {
+  const user = await requireUser();
+  if (!isId(accountId)) return INVALID_ID;
+  const supabase = await createClient();
+  const { count, error } = await supabase
+    .from("transactions")
+    .delete({ count: "exact" })
+    .eq("user_id", user.id)
+    .not("import_ref", "is", null)
+    .or(`account_id.eq.${accountId},to_account_id.eq.${accountId}`);
+  if (error) return failed(databaseFailure(error, "remove the imported transactions"));
+  refresh();
+  return { ok: true, removed: count ?? 0 };
 }

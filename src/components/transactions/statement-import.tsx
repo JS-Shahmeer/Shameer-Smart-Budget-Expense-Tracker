@@ -1,11 +1,12 @@
 "use client";
 
 import { useId, useMemo, useState, useTransition } from "react";
-import { CheckCircle2, FileUp } from "lucide-react";
-import { checkImport, commitImport, type RowStatus } from "@/app/(app)/transactions/import/actions";
+import { AlertTriangle, CheckCircle2, FileUp, RotateCcw } from "lucide-react";
+import { checkImport, commitImport, removeImported, type CommitResult, type RowStatus } from "@/app/(app)/transactions/import/actions";
 import { Alert } from "@/components/ui/alert";
 import { Button, ButtonLink } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { Field, Input, Select } from "@/components/ui/input";
 import { Segmented } from "@/components/ui/segmented";
 import type { CategorizedDescription } from "@/lib/data/imports";
@@ -19,6 +20,7 @@ import {
   guessMapping,
   parseCsv,
   sheetFromCells,
+  statementBalances,
   type DateOrder,
   type Mapping,
   type Sheet,
@@ -32,6 +34,8 @@ type Props = {
   accounts: AccountOption[];
   categories: CategoryOption[];
   history: CategorizedDescription[];
+  /** Imported transactions per account id. */
+  importedCounts: Record<string, number>;
   currency: string;
 };
 
@@ -64,12 +68,16 @@ async function readStatement(file: File): Promise<Sheet> {
   throw new Error("Choose a CSV or Excel (.xlsx) file.");
 }
 
-export function StatementImport({ accounts, categories, history, currency }: Props) {
+export function StatementImport({ accounts, categories, history, importedCounts, currency }: Props) {
   const usable = accounts.filter((a) => !a.is_archived);
   const [accountId, setAccountId] = useState(() => (usable.find((a) => a.type === "bank") ?? usable[0])?.id ?? "");
   const [parsed, setParsed] = useState<Parsed | null>(null);
   const [review, setReview] = useState<ReviewRow[] | null>(null);
-  const [result, setResult] = useState<{ imported: number; alreadyThere: number } | null>(null);
+  const [result, setResult] = useState<(Extract<CommitResult, { ok: true }> & { closingMinor: number | null; accountName: string }) | null>(null);
+  const [tracksCash, setTracksCash] = useState(false);
+  const [setOpening, setSetOpening] = useState(true);
+  const [removing, setRemoving] = useState<AccountOption | null>(null);
+  const [removed, setRemoved] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
   const fileId = useId();
@@ -80,12 +88,14 @@ export function StatementImport({ accounts, categories, history, currency }: Pro
     () => (parsed ? extractRows(parsed.sheet, parsed.headerRow, parsed.mapping, parsed.order) : null),
     [parsed],
   );
+  const balances = useMemo(() => (extracted ? statementBalances(extracted.rows) : null), [extracted]);
 
   async function onFile(file: File | undefined) {
     setError(null);
     setParsed(null);
     setReview(null);
     setResult(null);
+    setRemoved(null);
     if (!file) return;
     try {
       const sheet = await readStatement(file);
@@ -115,7 +125,7 @@ export function StatementImport({ accounts, categories, history, currency }: Pro
       if (!check.ok) return setError(check.error);
       setReview(
         rows.map((row, i) => {
-          const transfer = suggestTransferAccount(row.description, row.kind, usable, accountId);
+          const transfer = tracksCash ? suggestTransferAccount(row.description, row.kind, usable, accountId) : null;
           const category = suggestCategory(row.description, row.kind, categories, learned);
           const target = transfer ? `acc:${transfer}` : category ? `cat:${category}` : "";
           return { ...row, status: check.statuses[i], include: check.statuses[i] === "new", target };
@@ -129,6 +139,9 @@ export function StatementImport({ accounts, categories, history, currency }: Pro
     const missing = review.findIndex((r) => r.include && !r.target);
     if (missing >= 0) return setError(`Choose a category for "${review[missing].description || formatDay(review[missing].date)}".`);
     setError(null);
+    const from = review.reduce((min, r) => (r.date < min ? r.date : min), review[0].date);
+    const opening = balances && setOpening ? { openingBalanceMinor: balances.openingMinor, from } : null;
+    const accountName = usable.find((a) => a.id === accountId)?.name ?? "The account";
     startTransition(async () => {
       const outcome = await commitImport(
         accountId,
@@ -141,9 +154,10 @@ export function StatementImport({ accounts, categories, history, currency }: Pro
           transferAccountId: r.target.startsWith("acc:") ? r.target.slice(4) : null,
         })),
         review.flatMap((r, i) => (r.include ? [i] : [])),
+        opening,
       );
       if (!outcome.ok) return setError(outcome.error);
-      setResult(outcome);
+      setResult({ ...outcome, closingMinor: balances?.closingMinor ?? null, accountName });
       setReview(null);
       setParsed(null);
     });
@@ -161,6 +175,29 @@ export function StatementImport({ accounts, categories, history, currency }: Pro
             Imported {result.imported} transaction{result.imported === 1 ? "" : "s"}
           </p>
           {result.alreadyThere > 0 ? <p className="text-sm text-muted">{result.alreadyThere} were already in the app and were skipped.</p> : null}
+          {result.opening === "set" ? (
+            <p className="text-sm text-muted">{result.accountName}&apos;s starting balance was set from the statement.</p>
+          ) : null}
+          {result.opening === "earlier-transactions" ? (
+            <p className="max-w-md text-sm text-muted">
+              {result.accountName} has transactions from before this statement, so its starting balance was left as it was.
+            </p>
+          ) : null}
+          {result.balanceMinor !== null && result.closingMinor !== null ? (
+            result.balanceMinor === result.closingMinor ? (
+              <p className="text-sm text-positive">
+                {result.accountName} now shows {money(result.balanceMinor)}, the same as the statement.
+              </p>
+            ) : (
+              <p className="flex max-w-md items-start gap-2 text-left text-sm text-warning">
+                <AlertTriangle aria-hidden className="mt-0.5 size-4 shrink-0" />
+                <span>
+                  {result.accountName} shows {money(result.balanceMinor)} but the statement ends at {money(result.closingMinor)}. Check its
+                  starting balance under Accounts &amp; categories, and any rows you left out.
+                </span>
+              </p>
+            )
+          ) : null}
           <div className="flex gap-2">
             <ButtonLink href="/transactions">See transactions</ButtonLink>
             <Button variant="secondary" onClick={() => setResult(null)}>
@@ -268,6 +305,15 @@ export function StatementImport({ accounts, categories, history, currency }: Pro
                   }}
                 />
               </div>
+              <Field id="map-balance" label="Balance column" hint="Optional. Used to set the account's balance to match the bank.">
+                <ColumnSelect
+                  id="map-balance"
+                  value={parsed.mapping.balance}
+                  options={columnOptions}
+                  optional
+                  onChange={(balance) => setMapping({ balance })}
+                />
+              </Field>
               {parsed.mapping.amount >= 0 ? (
                 <Field id="map-amount" label="Amount column" hint="Negative amounts are money out.">
                   <ColumnSelect id="map-amount" value={parsed.mapping.amount} options={columnOptions} onChange={(amount) => setMapping({ amount })} />
@@ -313,6 +359,22 @@ export function StatementImport({ accounts, categories, history, currency }: Pro
               </div>
             ) : null}
 
+            <label className="flex items-start gap-3 text-sm">
+              <input
+                type="checkbox"
+                checked={tracksCash}
+                onChange={(e) => setTracksCash(e.target.checked)}
+                className="mt-0.5 size-4 shrink-0 accent-accent"
+              />
+              <span>
+                <span className="font-medium text-fg">I also record what I spend from cash in this app</span>
+                <span className="block text-muted">
+                  Then cash withdrawals are moved to your Cash account. Leave this off and they count as spending, so your Cash
+                  account doesn&apos;t fill up with money you have already spent.
+                </span>
+              </span>
+            </label>
+
             <Button onClick={toReview} loading={pending} disabled={!extracted || extracted.rows.length === 0 || !accountId}>
               Continue to review
             </Button>
@@ -327,6 +389,10 @@ export function StatementImport({ accounts, categories, history, currency }: Pro
           accounts={usable}
           categories={categories}
           money={money}
+          balances={balances}
+          accountName={usable.find((a) => a.id === accountId)?.name ?? "the account"}
+          setOpening={setOpening}
+          onSetOpening={setSetOpening}
           pending={pending}
           onChange={update}
           onSetAll={(include) => setReview(review.map((r) => ({ ...r, include: include && r.status !== "imported" })))}
@@ -334,6 +400,55 @@ export function StatementImport({ accounts, categories, history, currency }: Pro
           onSave={save}
         />
       ) : null}
+
+      {removed ? <Alert tone="success">{removed}</Alert> : null}
+
+      {!parsed && !review && usable.some((a) => (importedCounts[a.id] ?? 0) > 0) ? (
+        <Card>
+          <CardHeader>
+            <CardTitle>Start an import again</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-3 text-sm text-muted">
+            <p>
+              Imported with the wrong choices? Remove that account&apos;s imported transactions and import the file again.
+              Transactions you entered yourself are kept.
+            </p>
+            <ul className="divide-y divide-line rounded-lg border border-line">
+              {usable
+                .filter((a) => (importedCounts[a.id] ?? 0) > 0)
+                .map((a) => (
+                  <li key={a.id} className="flex items-center justify-between gap-3 px-3 py-2">
+                    <span className="min-w-0 truncate text-fg">
+                      {a.name} <span className="text-subtle">· {importedCounts[a.id]} imported</span>
+                    </span>
+                    <Button size="sm" variant="secondary" onClick={() => setRemoving(a)}>
+                      <RotateCcw aria-hidden className="size-4" /> Remove
+                    </Button>
+                  </li>
+                ))}
+            </ul>
+          </CardContent>
+        </Card>
+      ) : null}
+
+      <ConfirmDialog
+        open={removing !== null}
+        title={`Remove ${removing ? importedCounts[removing.id] : 0} imported transactions?`}
+        description={`Every imported transaction involving ${removing?.name ?? "this account"} is deleted, including transfers to and from it. This can't be undone, but you can import the statement again.`}
+        confirmLabel="Remove"
+        pending={pending}
+        onCancel={() => setRemoving(null)}
+        onConfirm={() =>
+          removing &&
+          startTransition(async () => {
+            const outcome = await removeImported(removing.id);
+            setRemoving(null);
+            if (!outcome.ok) return setError(outcome.error);
+            setError(null);
+            setRemoved(`Removed ${outcome.removed} imported transaction${outcome.removed === 1 ? "" : "s"} from ${removing.name}.`);
+          })
+        }
+      />
 
       {!parsed && !review ? (
         <Card>
@@ -383,6 +498,10 @@ function ReviewTable({
   accounts,
   categories,
   money,
+  balances,
+  accountName,
+  setOpening,
+  onSetOpening,
   pending,
   onChange,
   onSetAll,
@@ -394,6 +513,10 @@ function ReviewTable({
   accounts: AccountOption[];
   categories: CategoryOption[];
   money: (minor: number) => string;
+  balances: { openingMinor: number; closingMinor: number } | null;
+  accountName: string;
+  setOpening: boolean;
+  onSetOpening: (value: boolean) => void;
   pending: boolean;
   onChange: (index: number, patch: Partial<ReviewRow>) => void;
   onSetAll: (include: boolean) => void;
@@ -430,6 +553,26 @@ function ReviewTable({
               ? `${counts.duplicate} look${counts.duplicate === 1 ? "s" : ""} like ${counts.duplicate === 1 ? "a transaction" : "transactions"} you entered by hand (same day and amount), so ${counts.duplicate === 1 ? "it is" : "they are"} unticked. Tick any that are really new.`
               : ""}
           </Alert>
+        ) : null}
+
+        {balances ? (
+          <label className="flex items-start gap-3 rounded-lg border border-line px-3 py-2.5 text-sm">
+            <input
+              type="checkbox"
+              checked={setOpening}
+              onChange={(e) => onSetOpening(e.target.checked)}
+              className="mt-0.5 size-4 shrink-0 accent-accent"
+            />
+            <span>
+              <span className="font-medium text-fg">
+                Set {accountName}&apos;s starting balance to {money(balances.openingMinor)}
+              </span>
+              <span className="block text-muted">
+                That is the balance before this statement&apos;s first row, so after the import {accountName} shows{" "}
+                {money(balances.closingMinor)}, the same as the bank. It is left alone if the account has older transactions.
+              </span>
+            </span>
+          </label>
         ) : null}
 
         <div className="max-h-[60vh] overflow-auto rounded-lg border border-line">
@@ -522,7 +665,8 @@ function ReviewTable({
         </div>
         <p className="text-xs text-subtle">
           Choose &ldquo;Transfer to my account&rdquo; for money moved to your own savings, wallet or card so it isn&apos;t counted as
-          spending.
+          spending. Add &ldquo;Cash spending&rdquo; and &ldquo;Bank fees&rdquo; categories and cash withdrawals and bank charges are
+          sorted into them.
         </p>
       </CardContent>
     </Card>
